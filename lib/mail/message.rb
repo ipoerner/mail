@@ -46,7 +46,7 @@ module Mail
   #   (i.e., a line with nothing preceding the CRLF).
   class Message
 
-    include Patterns
+    include Constants
     include Utilities
 
     # ==Making an email
@@ -105,8 +105,11 @@ module Mail
       @html_part = nil
       @errors = nil
       @header = nil
-      @charset = 'UTF-8'
+      @charset = self.class.default_charset
       @defaulted_charset = true
+
+      @smtp_envelope_from = nil
+      @smtp_envelope_to = nil
 
       @perform_deliveries = true
       @raise_delivery_errors = true
@@ -204,6 +207,10 @@ module Mail
     # define a delivery_handler
     attr_accessor :raise_delivery_errors
 
+    def self.default_charset; @@default_charset; end
+    def self.default_charset=(charset); @@default_charset = charset; end
+    self.default_charset = 'UTF-8'
+
     def register_for_delivery_notification(observer)
       STDERR.puts("Message#register_for_delivery_notification is deprecated, please call Mail.register_observer instead")
       Mail.register_observer(observer)
@@ -237,7 +244,7 @@ module Mail
     # This method bypasses checking perform_deliveries and raise_delivery_errors,
     # so use with caution.
     #
-    # It still however fires off the intercepters and calls the observers callbacks if they are defined.
+    # It still however fires off the interceptors and calls the observers callbacks if they are defined.
     #
     # Returns self
     def deliver!
@@ -350,15 +357,21 @@ module Mail
       return false unless other.respond_to?(:encoded)
 
       if self.message_id && other.message_id
-        result = (self.encoded == other.encoded)
+        self.encoded == other.encoded
       else
         self_message_id, other_message_id = self.message_id, other.message_id
-        self.message_id, other.message_id = '<temp@test>', '<temp@test>'
-        result = self.encoded == other.encoded
-        self.message_id = "<#{self_message_id}>" if self_message_id
-        other.message_id = "<#{other_message_id}>" if other_message_id
-        result
+        begin
+          self.message_id, other.message_id = '<temp@test>', '<temp@test>'
+          self.encoded == other.encoded
+        ensure
+          self.message_id, other.message_id = self_message_id, other_message_id
+        end
       end
+    end
+
+    def initialize_copy(original)
+      super
+      @header = @header.dup
     end
 
     # Provides access to the raw source of the message as it was when it
@@ -938,8 +951,8 @@ module Mail
     #
     # Example:
     #
-    #  mail.sender = 'Mikel <mikel@test.lindsaar.net>'
-    #  mail.sender #=> 'mikel@test.lindsaar.net'
+    #  mail.resent_sender = 'Mikel <mikel@test.lindsaar.net>'
+    #  mail.resent_sender #=> 'mikel@test.lindsaar.net'
     def resent_sender=( val )
       header[:resent_sender] = val
     end
@@ -1021,6 +1034,82 @@ module Mail
     #  mail.sender #=> 'mikel@test.lindsaar.net'
     def sender=( val )
       header[:sender] = val
+    end
+
+    # Returns the SMTP Envelope From value of the mail object, as a single
+    # string of an address spec.
+    #
+    # Defaults to Return-Path, Sender, or the first From address.
+    #
+    # Example:
+    #
+    #  mail.smtp_envelope_from = 'Mikel <mikel@test.lindsaar.net>'
+    #  mail.smtp_envelope_from #=> 'mikel@test.lindsaar.net'
+    #
+    # Also allows you to set the value by passing a value as a parameter
+    #
+    # Example:
+    #
+    #  mail.smtp_envelope_from 'Mikel <mikel@test.lindsaar.net>'
+    #  mail.smtp_envelope_from #=> 'mikel@test.lindsaar.net'
+    def smtp_envelope_from( val = nil )
+      if val
+        self.smtp_envelope_from = val
+      else
+        @smtp_envelope_from || return_path || sender || from_addrs.first
+      end
+    end
+
+    # Sets the From address on the SMTP Envelope.
+    #
+    # Example:
+    #
+    #  mail.smtp_envelope_from = 'Mikel <mikel@test.lindsaar.net>'
+    #  mail.smtp_envelope_from #=> 'mikel@test.lindsaar.net'
+    def smtp_envelope_from=( val )
+      @smtp_envelope_from = val
+    end
+
+    # Returns the SMTP Envelope To value of the mail object.
+    #
+    # Defaults to #destinations: To, Cc, and Bcc addresses.
+    #
+    # Example:
+    #
+    #  mail.smtp_envelope_to = 'Mikel <mikel@test.lindsaar.net>'
+    #  mail.smtp_envelope_to #=> 'mikel@test.lindsaar.net'
+    #
+    # Also allows you to set the value by passing a value as a parameter
+    #
+    # Example:
+    #
+    #  mail.smtp_envelope_to ['Mikel <mikel@test.lindsaar.net>', 'Lindsaar <lindsaar@test.lindsaar.net>']
+    #  mail.smtp_envelope_to #=> ['mikel@test.lindsaar.net', 'lindsaar@test.lindsaar.net']
+    def smtp_envelope_to( val = nil )
+      if val
+        self.smtp_envelope_to = val
+      else
+        @smtp_envelope_to || destinations
+      end
+    end
+
+    # Sets the To addresses on the SMTP Envelope.
+    #
+    # Example:
+    #
+    #  mail.smtp_envelope_to = 'Mikel <mikel@test.lindsaar.net>'
+    #  mail.smtp_envelope_to #=> 'mikel@test.lindsaar.net'
+    #
+    #  mail.smtp_envelope_to = ['Mikel <mikel@test.lindsaar.net>', 'Lindsaar <lindsaar@test.lindsaar.net>']
+    #  mail.smtp_envelope_to #=> ['mikel@test.lindsaar.net', 'lindsaar@test.lindsaar.net']
+    def smtp_envelope_to=( val )
+      @smtp_envelope_to =
+        case val
+        when Array, NilClass
+          val
+        else
+          [val]
+        end
     end
 
     # Returns the decoded value of the subject field, as a single string.
@@ -1309,7 +1398,7 @@ module Mail
       header.has_date?
     end
 
-    # Returns true if the message has a Date field, the field may or may
+    # Returns true if the message has a Mime-Version field, the field may or may
     # not have a value, but the field exists or not.
     def has_mime_version?
       header.has_mime_version?
@@ -1515,7 +1604,7 @@ module Mail
     end
 
     # Returns an AttachmentsList object, which holds all of the attachments in
-    # the receiver object (either the entier email or a part within) and all
+    # the receiver object (either the entire email or a part within) and all
     # of its descendants.
     #
     # It also allows you to add attachments to the mail object directly, like so:
@@ -1683,7 +1772,10 @@ module Mail
         filedata = File.open(values, 'rb') { |f| f.read }
       else
         basename = values[:filename]
-        filedata = values[:content] || File.open(values[:filename], 'rb') { |f| f.read }
+        filedata = values
+        unless filedata[:content]
+          filedata = values.merge(:content=>File.open(values[:filename], 'rb') { |f| f.read })
+        end
       end
       self.attachments[basename] = filedata
     end
@@ -1878,6 +1970,8 @@ module Mail
 
   private
 
+    HEADER_SEPARATOR = /#{CRLF}#{CRLF}|#{CRLF}#{WSP}*#{CRLF}(?!#{WSP})/m
+
     #  2.1. General Description
     #   A message consists of header fields (collectively called "the header
     #   of the message") followed, optionally, by a body.  The header is a
@@ -1889,13 +1983,13 @@ module Mail
     # Additionally, I allow for the case where someone might have put whitespace
     # on the "gap line"
     def parse_message
-      header_part, body_part = raw_source.lstrip.split(/#{CRLF}#{WSP}*#{CRLF}(?!#{WSP})/m, 2)
+      header_part, body_part = raw_source.lstrip.split(HEADER_SEPARATOR, 2)
       self.header = header_part
       self.body   = body_part
     end
 
     def raw_source=(value)
-      value.force_encoding("binary") if RUBY_VERSION >= "1.9.1"
+      value = value.dup.force_encoding(Encoding::BINARY) if RUBY_VERSION >= "1.9.1"
       @raw_source = value.to_crlf
     end
 
@@ -2049,26 +2143,13 @@ module Mail
         if perform_deliveries
           delivery_method.deliver!(self)
         end
-      rescue Exception => e # Net::SMTP errors or sendmail pipe errors
+      rescue => e # Net::SMTP errors or sendmail pipe errors
         raise e if raise_delivery_errors
       end
     end
 
     def decode_body_as_text
-      body_text = decode_body
-      if charset
-        if RUBY_VERSION < '1.9'
-          require 'iconv'
-          return Iconv.conv("UTF-8//TRANSLIT//IGNORE", charset, body_text)
-        else
-          if encoding = Encoding.find(charset) rescue nil
-            body_text.force_encoding(encoding)
-            return body_text.encode(Encoding::UTF_8, :undef => :replace, :invalid => :replace, :replace => '')
-          end
-        end
-      end
-      body_text
+      Encodings.transcode_charset decode_body, charset, 'UTF-8'
     end
-
   end
 end

@@ -27,10 +27,10 @@ describe "sendmail delivery agent" do
       subject 'invalid RFC2822'
     end
     
-    Mail::Sendmail.should_receive(:call).with('/usr/sbin/sendmail', 
-                                              '-i -t -f "roger@test.lindsaar.net" --',
+    expect(Mail::Sendmail).to receive(:call).with('/usr/sbin/sendmail', 
+                                              '-i -f "roger@test.lindsaar.net" --',
                                               '"marcel@test.lindsaar.net" "bob@test.lindsaar.net"', 
-                                              mail)
+                                              mail.encoded)
     mail.deliver!
   end
 
@@ -45,14 +45,14 @@ describe "sendmail delivery agent" do
       subject 'invalid RFC2822'
     end
 
-    Mail::Sendmail.should_receive(:popen).with('/usr/sbin/sendmail -i -t -f "roger@test.lindsaar.net" -- "marcel@test.lindsaar.net" "bob@test.lindsaar.net"')
+    expect(Mail::Sendmail).to receive(:popen).with('/usr/sbin/sendmail -i -f "roger@test.lindsaar.net" -- "marcel@test.lindsaar.net" "bob@test.lindsaar.net"')
 
     mail.deliver!
   end
 
-  describe "return path" do
+  describe 'SMTP From' do
 
-    it "should send an email with a return-path using sendmail" do
+    it 'should explicitly pass an envelope From address to sendmail' do
       Mail.defaults do
         delivery_method :sendmail
       end
@@ -60,65 +60,23 @@ describe "sendmail delivery agent" do
       mail = Mail.new do
         to "to@test.lindsaar.net"
         from "from@test.lindsaar.net"
-        sender "sender@test.lindsaar.net"
-        subject "Can't set the return-path"
-        return_path "return@test.lindsaar.net"
+        subject 'Can\'t set the return-path'
         message_id "<1234@test.lindsaar.net>"
         body "body"
+
+        smtp_envelope_from 'smtp_from@test.lindsaar.net'
       end
-      
-      Mail::Sendmail.should_receive(:call).with('/usr/sbin/sendmail',
-                                                '-i -t -f "return@test.lindsaar.net" --',
+
+      expect(Mail::Sendmail).to receive(:call).with('/usr/sbin/sendmail',
+                                                '-i -f "smtp_from@test.lindsaar.net" --',
                                                 '"to@test.lindsaar.net"', 
-                                                mail)
-                                                
+                                                mail.encoded)
+
       mail.deliver
 
     end
 
-    it "should use the sender address is no return path is specified" do
-      Mail.defaults do
-        delivery_method :sendmail
-      end
-
-      mail = Mail.new do
-        to "to@test.lindsaar.net"
-        from "from@test.lindsaar.net"
-        sender "sender@test.lindsaar.net"
-        subject "Can't set the return-path"
-        message_id "<1234@test.lindsaar.net>"
-        body "body"
-      end
-
-      Mail::Sendmail.should_receive(:call).with('/usr/sbin/sendmail',
-                                                '-i -t -f "sender@test.lindsaar.net" --',
-                                                '"to@test.lindsaar.net"', 
-                                                mail)
-
-      mail.deliver
-    end
-    
-    it "should use the from address is no return path or sender are specified" do
-      Mail.defaults do
-        delivery_method :sendmail
-      end
-
-      mail = Mail.new do
-        to "to@test.lindsaar.net"
-        from "from@test.lindsaar.net"
-        subject "Can't set the return-path"
-        message_id "<1234@test.lindsaar.net>"
-        body "body"
-      end
-
-      Mail::Sendmail.should_receive(:call).with('/usr/sbin/sendmail',
-                                                '-i -t -f "from@test.lindsaar.net" --',
-                                                '"to@test.lindsaar.net"', 
-                                                mail)
-      mail.deliver
-    end
-
-    it "should escape the return path address" do
+    it "should escape the From address" do
       Mail.defaults do
         delivery_method :sendmail
       end
@@ -131,10 +89,55 @@ describe "sendmail delivery agent" do
         body 'body'
       end
 
-      Mail::Sendmail.should_receive(:call).with('/usr/sbin/sendmail',
-                                                '-i -t -f "\"from+suffix test\"@test.lindsaar.net" --',
+      expect(Mail::Sendmail).to receive(:call).with('/usr/sbin/sendmail',
+                                                '-i -f "\"from+suffix test\"@test.lindsaar.net" --',
                                                 '"to@test.lindsaar.net"',
-                                                mail)
+                                                mail.encoded)
+      mail.deliver
+    end
+  end
+
+  describe 'SMTP To' do
+
+    it 'should explicitly pass envelope To addresses to sendmail' do
+      Mail.defaults do
+        delivery_method :sendmail
+      end
+
+      mail = Mail.new do
+        to "to@test.lindsaar.net"
+        from "from@test.lindsaar.net"
+        subject 'Can\'t set the return-path'
+        message_id "<1234@test.lindsaar.net>"
+        body "body"
+
+        smtp_envelope_to 'smtp_to@test.lindsaar.net'
+      end
+
+      expect(Mail::Sendmail).to receive(:call).with('/usr/sbin/sendmail',
+                                                '-i -f "from@test.lindsaar.net" --',
+                                                '"smtp_to@test.lindsaar.net"',
+                                                mail.encoded)
+      mail.deliver
+    end
+
+    it "should escape the To address" do
+      Mail.defaults do
+        delivery_method :sendmail
+      end
+
+      mail = Mail.new do
+        to '"to+suffix test"@test.lindsaar.net'
+        from 'from@test.lindsaar.net'
+        subject 'Can\'t set the return-path'
+        message_id '<1234@test.lindsaar.net>'
+        body 'body'
+      end
+
+      expect(Mail::Sendmail).to receive(:call).with('/usr/sbin/sendmail',
+                                                '-i -f "from@test.lindsaar.net" --',
+                                                '"\"to+suffix test\"@test.lindsaar.net"',
+                                                mail.encoded)
       mail.deliver
     end
 
@@ -148,10 +151,10 @@ describe "sendmail delivery agent" do
         from 'from@test.lindsaar.net'
       end
 
-      Mail::Sendmail.should_receive(:call).with('/usr/sbin/sendmail',
-                                                '-i -t -f "from@test.lindsaar.net" --',
+      expect(Mail::Sendmail).to receive(:call).with('/usr/sbin/sendmail',
+                                                '-i -f "from@test.lindsaar.net" --',
                                                 '"-hyphen@test.lindsaar.net"',
-                                                mail)
+                                                mail.encoded)
       mail.deliver
     end
   end
@@ -167,10 +170,10 @@ describe "sendmail delivery agent" do
       subject 'invalid RFC2822'
     end
     
-    Mail::Sendmail.should_receive(:call).with('/usr/sbin/sendmail', 
-                                              '-f "from@test.lindsaar.net" --',
+    expect(Mail::Sendmail).to receive(:call).with('/usr/sbin/sendmail', 
+                                              ' -f "from@test.lindsaar.net" --',
                                               '"marcel@test.lindsaar.net" "bob@test.lindsaar.net"', 
-                                              mail)
+                                              mail.encoded)
     mail.deliver!
   end
 
@@ -185,10 +188,10 @@ describe "sendmail delivery agent" do
       subject 'invalid RFC2822'
     end
     
-    Mail::Sendmail.should_receive(:call).with('/usr/sbin/sendmail', 
-                                              "-f \"\\\"foo\\\\\\\"\\;touch /tmp/PWNED\\;\\\\\\\"\\\"@blah.com\" --",
+    expect(Mail::Sendmail).to receive(:call).with('/usr/sbin/sendmail', 
+                                              " -f \"\\\"foo\\\\\\\"\\;touch /tmp/PWNED\\;\\\\\\\"\\\"@blah.com\" --",
                                               %("\\\"foo\\\\\\\"\\;touch /tmp/PWNED\\;\\\\\\\"\\\"@blah.com"), 
-                                              mail)
+                                              mail.encoded)
     mail.deliver!
   end
 
@@ -196,25 +199,25 @@ describe "sendmail delivery agent" do
     Mail.defaults do
       delivery_method :test
     end
-    lambda do
+    expect do
       Mail.deliver do
         to "to@somemail.com"
         subject "Email with no sender"
         body "body"
       end
-    end.should raise_error('A sender (Return-Path, Sender or From) required to send a message')
+    end.to raise_error('An SMTP From address is required to send a message. Set the message smtp_envelope_from, return_path, sender, or from address.')
   end
 
   it "should raise an error if no recipient if defined" do
     Mail.defaults do
       delivery_method :test
     end
-    lambda do
+    expect do
       Mail.deliver do
         from "from@somemail.com"
         subject "Email with no recipient"
         body "body"
       end
-    end.should raise_error('At least one recipient (To, Cc or Bcc) is required to send a message')
+    end.to raise_error('An SMTP To address is required to send a message. Set the message smtp_envelope_to, to, cc, or bcc address.')
   end
 end

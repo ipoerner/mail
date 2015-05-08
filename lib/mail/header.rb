@@ -17,7 +17,7 @@ module Mail
   #   2.2.3.  All field bodies MUST conform to the syntax described in
   #   sections 3 and 4 of this standard.
   class Header
-    include Patterns
+    include Constants
     include Utilities
     include Enumerable
     
@@ -48,10 +48,14 @@ module Mail
     # these cases, please make a patch and send it in, or at the least, send
     # me the example so we can fix it.
     def initialize(header_text = nil, charset = nil)
-      @errors = []
       @charset = charset
       self.raw_source = header_text.to_crlf.lstrip
       split_header if header_text
+    end
+
+    def initialize_copy(original)
+      super
+      @fields = @fields.dup
     end
     
     # The preserved raw source of the header as you passed it in, untouched
@@ -91,7 +95,6 @@ module Mail
       unfolded_fields[0..(self.class.maximum_amount-1)].each do |field|
 
         field = Field.new(field, nil, charset)
-        field.errors.each { |error| self.errors << error }
         if limited_field?(field.name) && (selected = select_field_for(field.name)) && selected.any? 
           selected.first.update(field.name, field.value)
         else
@@ -102,7 +105,7 @@ module Mail
     end
     
     def errors
-      @errors
+      @fields.map(&:errors).flatten(1)
     end
     
     #  3.6. Field definitions
@@ -127,7 +130,8 @@ module Mail
     #  h['To']          #=> 'mikel@me.com'
     #  h['X-Mail-SPAM'] #=> ['15', '20']
     def [](name)
-      name = dasherize(name).downcase
+      name = dasherize(name)
+      name.downcase!
       selected = select_field_for(name)
       case
       when selected.length > 1
@@ -177,7 +181,7 @@ module Mail
       if dasherize(fn) == "content-type"
         # Update charset if specified in Content-Type
         params = self[:content_type].parameters rescue nil
-        @charset = params && params[:charset]
+        @charset = params[:charset] if params && params[:charset]
       end
     end
     
@@ -246,27 +250,10 @@ module Mail
       @raw_source = val
     end
     
-    # 2.2.3. Long Header Fields
-    # 
-    #  The process of moving from this folded multiple-line representation
-    #  of a header field to its single line representation is called
-    #  "unfolding". Unfolding is accomplished by simply removing any CRLF
-    #  that is immediately followed by WSP.  Each header field should be
-    #  treated in its unfolded form for further syntactic and semantic
-    #  evaluation.
-    def unfold(string)
-      string.gsub(/#{CRLF}#{WSP}+/, ' ').gsub(/#{WSP}+/, ' ')
-    end
-    
-    # Returns the header with all the folds removed
-    def unfolded_header
-      @unfolded_header ||= unfold(raw_source)
-    end
-    
     # Splits an unfolded and line break cleaned header into individual field
     # strings.
     def split_header
-      self.fields = unfolded_header.split(CRLF)
+      self.fields = raw_source.split(HEADER_SPLIT)
     end
     
     def select_field_for(name)

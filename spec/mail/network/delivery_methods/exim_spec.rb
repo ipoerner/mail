@@ -27,10 +27,10 @@ describe "exim delivery agent" do
       subject 'invalid RFC2822'
     end
     
-    Mail::Exim.should_receive(:call).with('/usr/sbin/exim', 
+    expect(Mail::Exim).to receive(:call).with('/usr/sbin/exim', 
                                           '-i -t -f "roger@test.lindsaar.net" --', 
                                           '"marcel@test.lindsaar.net" "bob@test.lindsaar.net"', 
-                                          mail)
+                                          mail.encoded)
     mail.deliver!
   end
 
@@ -51,10 +51,10 @@ describe "exim delivery agent" do
         body "body"
       end
       
-      Mail::Exim.should_receive(:call).with('/usr/sbin/exim',
+      expect(Mail::Exim).to receive(:call).with('/usr/sbin/exim',
                                                 '-i -t -f "return@test.lindsaar.net" --', 
                                                 '"to@test.lindsaar.net"', 
-                                                mail)
+                                                mail.encoded)
                                                 
       mail.deliver
 
@@ -74,10 +74,10 @@ describe "exim delivery agent" do
         body "body"
       end
 
-      Mail::Exim.should_receive(:call).with('/usr/sbin/exim',
+      expect(Mail::Exim).to receive(:call).with('/usr/sbin/exim',
                                                 '-i -t -f "sender@test.lindsaar.net" --', 
                                                 '"to@test.lindsaar.net"', 
-                                                mail)
+                                                mail.encoded)
 
       mail.deliver
     end
@@ -95,10 +95,10 @@ describe "exim delivery agent" do
         body "body"
       end
 
-      Mail::Exim.should_receive(:call).with('/usr/sbin/exim',
+      expect(Mail::Exim).to receive(:call).with('/usr/sbin/exim',
                                                 '-i -t -f "from@test.lindsaar.net" --', 
                                                 '"to@test.lindsaar.net"', 
-                                                mail)
+                                                mail.encoded)
       mail.deliver
     end
 
@@ -115,10 +115,10 @@ describe "exim delivery agent" do
         body 'body'
       end
 
-      Mail::Exim.should_receive(:call).with('/usr/sbin/exim',
+      expect(Mail::Exim).to receive(:call).with('/usr/sbin/exim',
                                                 '-i -t -f "\"from+suffix test\"@test.lindsaar.net" --',
                                                 '"to@test.lindsaar.net"',
-                                                mail)
+                                                mail.encoded)
       mail.deliver
     end
 
@@ -132,10 +132,10 @@ describe "exim delivery agent" do
         from 'from@test.lindsaar.net'
       end
 
-      Mail::Exim.should_receive(:call).with('/usr/sbin/exim',
+      expect(Mail::Exim).to receive(:call).with('/usr/sbin/exim',
                                                 '-i -t -f "from@test.lindsaar.net" --',
                                                 '"-hyphen@test.lindsaar.net"',
-                                                mail)
+                                                mail.encoded)
       mail.deliver
     end
   end
@@ -151,10 +151,10 @@ describe "exim delivery agent" do
       subject 'invalid RFC2822'
     end
     
-    Mail::Exim.should_receive(:call).with('/usr/sbin/exim', 
-                                              '-f "from@test.lindsaar.net" --', 
+    expect(Mail::Exim).to receive(:call).with('/usr/sbin/exim', 
+                                              ' -f "from@test.lindsaar.net" --',
                                               '"marcel@test.lindsaar.net" "bob@test.lindsaar.net"', 
-                                              mail)
+                                              mail.encoded)
     mail.deliver!
   end
 
@@ -169,10 +169,10 @@ describe "exim delivery agent" do
       subject 'invalid RFC2822'
     end
     
-    Mail::Exim.should_receive(:call).with('/usr/sbin/exim', 
-                                              "-f \"\\\"foo\\\\\\\"\\;touch /tmp/PWNED\\;\\\\\\\"\\\"@blah.com\" --", 
+    expect(Mail::Exim).to receive(:call).with('/usr/sbin/exim', 
+                                              " -f \"\\\"foo\\\\\\\"\\;touch /tmp/PWNED\\;\\\\\\\"\\\"@blah.com\" --",
                                               '"marcel@test.lindsaar.net"', 
-                                              mail)
+                                              mail.encoded)
     mail.deliver!
   end
 
@@ -180,25 +180,25 @@ describe "exim delivery agent" do
     Mail.defaults do
       delivery_method :test
     end
-    lambda do
+    expect do
       Mail.deliver do
         to "to@somemail.com"
         subject "Email with no sender"
         body "body"
       end
-    end.should raise_error('A sender (Return-Path, Sender or From) required to send a message')
+    end.to raise_error('An SMTP From address is required to send a message. Set the message smtp_envelope_from, return_path, sender, or from address.')
   end
 
   it "should raise an error if no recipient if defined" do
     Mail.defaults do
       delivery_method :test
     end
-    lambda do
+    expect do
       Mail.deliver do
         from "from@somemail.com"
         subject "Email with no recipient"
         body "body"
       end
-    end.should raise_error('At least one recipient (To, Cc or Bcc) is required to send a message')
+    end.to raise_error('An SMTP To address is required to send a message. Set the message smtp_envelope_to, to, cc, or bcc address.')
   end
 end

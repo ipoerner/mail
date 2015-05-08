@@ -1,6 +1,40 @@
 == HEAD
 
+* Make the gem compatible with Rubinius (Robin Dupret)
+* #808 - Mail::Field correctly responds_to? the methods of its instantiated field (thegcat)
+* #772 - normalize encoding matchers (grosser)
+* #789 - Fix encoding collapsing not dealing with multiple encodings in 1 line (grosser)
+* #775 - avoid failed encodings / stop bad charsets early (grosser)
+* #849 - Handle calling Part#inline? when the Content-Disposition field couldn't be parsed (kjg)
+* #865 - Allow a body with an invalid encoding to be round tripped (kjg)
+* #868 - Use the Ruby19.charset_encoder when decoding message bodies (kjg)
+* #866 - Support decoding message bodies with non-Ruby-standard charsets (jeremy)
+
+== Version 2.6.3 - Mon Nov 3 23:53 +1100 2014 Mikel Lindsaar <mikel@reinteractive.net>
+
+* #796 support uu encoding (grosser)
+
+== Version 2.6.2 (Unreleased) - Wed Oct 22 13:42 -0500 2014 Benjamin Fleischer <github@benjaminfleischer.com>
+
+Performance:
+* #681 - fewer hotspot object allocations (srawlins)
+* #815 - autoload parsers for load-time speed and memory usage (grosser)
+
+Bugs:
+* #736 - Mail.new copes with non-UTF8 messages marked as UTF8 (jeremy)
+
+== Version 2.6.1 - Sun Jun 8 15:34 +1100 2014 Mikel Lindsaar <mikel@reinteractive.net>
+
 Features:
+* Silence warnings on loading ragel-generated parsers (bf4)
+
+== Version 2.6.0 - Mon Jun 2 22:49 +1100 2014 Mikel Lindsaar <mikel@reinteractive.net>
+
+Features:
+* Allow interceptors and observers to be unregistered (zuhao)
+* Added feature to find the mail in uid (taketin)
+* Save settings passed to TestMailer#new (svanderbleek)
+* Allow the setting of envelope from directly (jeremy)
 * Accept other IETF/IANA-registered Content-Types and Content-Transfer-Encodings (jeremy)
 * Alias shift-jis charset to Shift_JIS Ruby encoding (jeremy)
 * Add support for ks_c_5601-1987 charset, aliased to CP949 Ruby encoding (jeremy)
@@ -9,13 +43,20 @@ Features:
 * Setting the html_ or text_part sets a default text/html or text/plain content type (jeremy)
 * Setting the html_ or text_part to nil removes it (jeremy)
 * Addresses without a parsable email or display name still format as their raw text (jeremy)
+* Close pull request 504 - Alias GB2312 charset to GB18030 Ruby encoding (bpot)
 * Close pull request 399 - Accept :ca_path and :ca_file options for SMTP delivery (ndbroadbent)
 * Close pull request 389 - Don't add superfluous message headers to MIME parts (djmaze, jeremy)
 
 Performance:
+* Migrate to RAGEL based parser, awesome work by (bpot)
+* Performance improvements for people parsing email headers (ConradIrwin)
 * Close pull request 488 - Speed up field construction & comparison (bpot)
 
 Bugs:
+* Fix for when content looks like field name (kjg)
+* Don't change original when you change a copy (TylerRick)
+* Don't include separating semicolon in paramter value when sanitizing (bpot)
+* Fix fencepost encoding problem with binhex strings and only one token (drasch)
 * Fix sendmail delivery to addresses with a leading hyphen (lifo, jeremy)
 * Correctly format mbox From headers per RFC4155 (bpot, jeremy)
 * Fix bogus '=' at the end of some quoted-printable messages (jeremy)
@@ -29,6 +70,8 @@ Bugs:
 * The Received header may contain zero name/value pairs, qmail-style (jeremy)
 * Fix that setting an attachment with a :mime_type and :encoding would override the :encoding (jeremy)
 * Fix that declaring an html_part but no text_part would use multipart/alternative anyway (jeremy)
+* Close pull request 508 - Don't add an extra CRLF to MIME parts; split MIME parts on correct CRLF boundaries (Aalanar)
+* Close pull request 506 - Escape backslashes in quoted strings (ConradIrwin)
 * Close pull request 496 - Correctly handle quoted-printable line breaks (jeremy)
 * Close pull request 493 - Repair misencoded quoted-printable line breaks (jeremy)
 * Close pull request 487 - Extract comments from group email addresses (bpot)
@@ -46,6 +89,7 @@ Housekeeping:
 * Remove i18n dependency and last vestiges of activesupport dependency in specs (jeremy)
 * Clarify that Sender is a single address, not an address list (jeremy)
 * Add an MIT-LICENSE file to make licensing clear & obvious; update to 2013 (jeremy)
+* Close pull request 501 - Tighten up header/body whitespace splitting (ConradIrwin)
 * Close pull request 499 - Clean up some dead code (ConradIrwin)
 * Close pull request 489, 495 - Docs typos (JackDanger, francois)
 * Close pull request 485 - Be explicit about unsupported address parsing (bpot)
